@@ -5,6 +5,7 @@ import {
   Controls,
   Handle,
   Position,
+  BackgroundVariant,
 } from '@xyflow/react';
 import type { Node, Edge, NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -24,16 +25,38 @@ interface DistributedNodeData {
   [key: string]: unknown;
 }
 
-// Custom node component
+// Custom node component with dark theme
 function DistributedNode({ data }: NodeProps<Node<DistributedNodeData>>) {
   const nodeData = data as DistributedNodeData;
-  const statusColor: Record<string, string> = {
-    running: '#22c55e',
-    crashed: '#ef4444',
-    partitioned: '#f59e0b',
-    byzantine: '#a855f7',
+
+  const statusStyles: Record<string, { border: string; bg: string; glow: string }> = {
+    running: {
+      border: '#10b981',
+      bg: 'rgba(16, 185, 129, 0.1)',
+      glow: '0 0 20px rgba(16, 185, 129, 0.3)',
+    },
+    crashed: {
+      border: '#ef4444',
+      bg: 'rgba(239, 68, 68, 0.15)',
+      glow: '0 0 20px rgba(239, 68, 68, 0.3)',
+    },
+    partitioned: {
+      border: '#f59e0b',
+      bg: 'rgba(245, 158, 11, 0.1)',
+      glow: '0 0 20px rgba(245, 158, 11, 0.3)',
+    },
+    byzantine: {
+      border: '#8b5cf6',
+      bg: 'rgba(139, 92, 246, 0.1)',
+      glow: '0 0 20px rgba(139, 92, 246, 0.3)',
+    },
   };
-  const color = statusColor[nodeData.status] || '#6b7280';
+
+  const style = statusStyles[nodeData.status] || {
+    border: '#6b7280',
+    bg: 'rgba(107, 114, 128, 0.1)',
+    glow: 'none',
+  };
 
   const roleLabel = nodeData.role ? ` (${nodeData.role})` : '';
 
@@ -41,28 +64,65 @@ function DistributedNode({ data }: NodeProps<Node<DistributedNodeData>>) {
     <div
       className="distributed-node"
       style={{
-        border: `3px solid ${color}`,
+        border: `2px solid ${style.border}`,
         borderRadius: '50%',
-        width: 80,
-        height: 80,
+        width: 90,
+        height: 90,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: nodeData.status === 'crashed' ? '#fee2e2' : '#fff',
+        background: style.bg,
         cursor: 'pointer',
+        boxShadow: style.glow,
+        transition: 'all 0.2s ease',
       }}
     >
-      <Handle type="target" position={Position.Top} />
-      <div style={{ fontWeight: 'bold', fontSize: 14 }}>{nodeData.label}</div>
-      <div style={{ fontSize: 10, color: '#666' }}>
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{
+          background: style.border,
+          border: 'none',
+          width: 8,
+          height: 8,
+        }}
+      />
+      <div style={{
+        fontWeight: 600,
+        fontSize: 14,
+        color: '#f4f4f5',
+        letterSpacing: '-0.01em',
+      }}>
+        {nodeData.label}
+      </div>
+      <div style={{
+        fontSize: 10,
+        color: '#a1a1aa',
+        marginTop: 2,
+      }}>
         {nodeData.status}
         {roleLabel}
       </div>
       {nodeData.term !== undefined && (
-        <div style={{ fontSize: 9, color: '#999' }}>Term: {nodeData.term}</div>
+        <div style={{
+          fontSize: 9,
+          color: '#71717a',
+          marginTop: 1,
+        }}>
+          Term: {nodeData.term}
+        </div>
       )}
-      <Handle type="source" position={Position.Bottom} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{
+          background: style.border,
+          border: 'none',
+          width: 8,
+          height: 8,
+        }}
+      />
     </div>
   );
 }
@@ -80,9 +140,9 @@ export function NodeVisualizer({
 
   // Convert nodes to React Flow nodes
   const flowNodes: Node<DistributedNodeData>[] = Object.entries(nodes).map(([id, node], index) => {
-    const angle = (2 * Math.PI * index) / Object.keys(nodes).length;
-    const radius = 150;
-    const x = 250 + radius * Math.cos(angle);
+    const angle = (2 * Math.PI * index) / Object.keys(nodes).length - Math.PI / 2;
+    const radius = 160;
+    const x = 280 + radius * Math.cos(angle);
     const y = 200 + radius * Math.sin(angle);
 
     return {
@@ -120,8 +180,8 @@ export function NodeVisualizer({
         source: from,
         target: to,
         style: {
-          stroke: isPartitioned ? '#ef4444' : '#94a3b8',
-          strokeWidth: 2,
+          stroke: isPartitioned ? '#ef4444' : 'rgba(148, 163, 184, 0.3)',
+          strokeWidth: isPartitioned ? 2 : 1,
           strokeDasharray: isPartitioned ? '5,5' : undefined,
         },
         animated: !isPartitioned,
@@ -138,7 +198,7 @@ export function NodeVisualizer({
   );
 
   return (
-    <div style={{ width: '100%', height: '400px' }}>
+    <div style={{ width: '100%', height: '420px' }}>
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
@@ -146,26 +206,45 @@ export function NodeVisualizer({
         onNodeClick={handleNodeClick}
         fitView
         attributionPosition="bottom-left"
+        proOptions={{ hideAttribution: true }}
       >
-        <Background />
-        <Controls />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color="rgba(255, 255, 255, 0.05)"
+        />
+        <Controls
+          showInteractive={false}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+          }}
+        />
       </ReactFlow>
 
       {selectedNode && nodes[selectedNode] && (
         <div className="node-details">
           <h4>Node: {selectedNode}</h4>
-          <p>Status: {nodes[selectedNode].status}</p>
-          {nodes[selectedNode].role && <p>Role: {nodes[selectedNode].role}</p>}
+          <p><strong>Status:</strong> {nodes[selectedNode].status}</p>
+          {nodes[selectedNode].role && <p><strong>Role:</strong> {nodes[selectedNode].role}</p>}
           {nodes[selectedNode].term !== undefined && (
-            <p>Term: {nodes[selectedNode].term}</p>
+            <p><strong>Term:</strong> {nodes[selectedNode].term}</p>
           )}
           <div className="node-actions">
             {nodes[selectedNode].status === 'crashed' ? (
-              <button onClick={() => onRecoverNode?.(selectedNode)}>
+              <button
+                className="recover"
+                onClick={() => onRecoverNode?.(selectedNode)}
+              >
                 Recover Node
               </button>
             ) : (
-              <button onClick={() => onCrashNode?.(selectedNode)}>
+              <button
+                className="crash"
+                onClick={() => onCrashNode?.(selectedNode)}
+              >
                 Crash Node
               </button>
             )}

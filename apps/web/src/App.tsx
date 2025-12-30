@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSimulationStore } from './stores/simulationStore';
 import { ControlPanel } from './components/common/ControlPanel';
@@ -92,7 +93,8 @@ function App() {
                   setCurrentProject(null);
                 }}
               >
-                Back to Projects
+                <ArrowLeft size={16} />
+                Back
               </button>
               <h2>{currentProject.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</h2>
             </div>
