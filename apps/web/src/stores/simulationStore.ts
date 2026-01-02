@@ -92,7 +92,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
 
   // Nodes
   nodes: {},
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => {
+    console.log('[Store] setNodes called with:', Object.keys(nodes));
+    set({ nodes });
+  },
   updateNode: (nodeId, update) =>
     set((s) => ({
       nodes: {

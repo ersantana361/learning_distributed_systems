@@ -83,6 +83,7 @@ func (h *Hub) Run() {
 
 // Broadcast sends a message to all clients
 func (h *Hub) Broadcast(message []byte) {
+	log.Printf("[Broadcast] Sending to %d clients: %s", len(h.clients), string(message)[:min(len(message), 100)])
 	h.broadcast <- message
 }
 
@@ -90,10 +91,19 @@ func (h *Hub) Broadcast(message []byte) {
 func (h *Hub) BroadcastJSON(v interface{}) error {
 	data, err := json.Marshal(v)
 	if err != nil {
+		log.Printf("[BroadcastJSON] Marshal error: %v", err)
 		return err
 	}
+	log.Printf("[BroadcastJSON] Broadcasting: %s", string(data)[:min(len(data), 100)])
 	h.Broadcast(data)
 	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // SendToClient sends a message to a specific client
@@ -133,21 +143,28 @@ func (c *Client) readPump() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
+			log.Printf("[readPump] Connection closed for client %s: %v", c.id, err)
 			break
 		}
+
+		log.Printf("[readPump] Raw message from %s: %s", c.id, string(message))
 
 		// Parse message type
 		var baseMsg struct {
 			Type string `json:"type"`
 		}
 		if err := json.Unmarshal(message, &baseMsg); err != nil {
-			log.Printf("error parsing message: %v", err)
+			log.Printf("[readPump] Error parsing message: %v", err)
 			continue
 		}
+
+		log.Printf("[readPump] Parsed message type: %s", baseMsg.Type)
 
 		// Call message handler
 		if c.hub.onMessage != nil {
 			c.hub.onMessage(c.id, baseMsg.Type, message)
+		} else {
+			log.Printf("[readPump] No message handler set!")
 		}
 	}
 }
@@ -155,18 +172,25 @@ func (c *Client) readPump() {
 // writePump pumps messages from the hub to the websocket connection
 func (c *Client) writePump() {
 	defer func() {
+		log.Printf("[writePump] Closing connection for client %s", c.id)
 		c.conn.Close()
 	}()
+
+	log.Printf("[writePump] Started for client %s", c.id)
 
 	for {
 		message, ok := <-c.send
 		if !ok {
+			log.Printf("[writePump] Send channel closed for client %s", c.id)
 			c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 			return
 		}
 
+		log.Printf("[writePump] Writing message to client %s: %s", c.id, string(message)[:min(len(message), 100)])
+
 		w, err := c.conn.NextWriter(websocket.TextMessage)
 		if err != nil {
+			log.Printf("[writePump] NextWriter error for client %s: %v", c.id, err)
 			return
 		}
 		w.Write(message)
@@ -179,7 +203,9 @@ func (c *Client) writePump() {
 		}
 
 		if err := w.Close(); err != nil {
+			log.Printf("[writePump] Close error for client %s: %v", c.id, err)
 			return
 		}
+		log.Printf("[writePump] Message sent successfully to client %s", c.id)
 	}
 }

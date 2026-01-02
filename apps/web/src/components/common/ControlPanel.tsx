@@ -20,12 +20,24 @@ export function ControlPanel({
 }: ControlPanelProps) {
   const { simulation, connected } = useSimulationStore();
 
+  console.log('[ControlPanel] Render - connected:', connected, 'running:', simulation.running, 'mode:', simulation.mode);
+
+  const handleStart = () => {
+    console.log('[ControlPanel] Start button clicked');
+    onStart();
+  };
+
+  const handleStep = () => {
+    console.log('[ControlPanel] Step button clicked');
+    onStep();
+  };
+
   return (
     <div className="control-panel">
       <div className="control-buttons">
         {!simulation.running ? (
           <button
-            onClick={onStart}
+            onClick={handleStart}
             disabled={!connected}
             className="control-btn start"
             title="Start"
@@ -51,7 +63,7 @@ export function ControlPanel({
         )}
 
         <button
-          onClick={onStep}
+          onClick={handleStep}
           disabled={!simulation.running}
           className="control-btn step"
           title="Step Forward"

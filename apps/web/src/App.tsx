@@ -6,9 +6,12 @@ import { ControlPanel } from './components/common/ControlPanel';
 import { NodeVisualizer } from './components/common/NodeVisualizer';
 import { Timeline } from './components/common/Timeline';
 import { ProjectSelector } from './components/common/ProjectSelector';
+import { ExplanationPanel } from './components/projects/ExplanationPanel';
 import './App.css';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+// WebSocket connects to localhost - works even when page is served via tunnel
+// (browsers allow ws://localhost from https pages as a special case)
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3004/ws';
 
 function App() {
   const { currentProject, setCurrentProject, simulation } = useSimulationStore();
@@ -52,12 +55,16 @@ function App() {
   };
 
   const handleStart = () => {
+    console.log('[App] handleStart called, currentProject:', currentProject);
     if (currentProject) {
+      console.log('[App] Starting simulation for project:', currentProject);
       startSimulation(currentProject, undefined, {
         nodeCount: 5,
         speed: 1.0,
         stepMode: true,
       });
+    } else {
+      console.warn('[App] No project selected');
     }
   };
 
@@ -122,15 +129,7 @@ function App() {
               </div>
             </div>
 
-            <div className="explanation-panel">
-              <h3>About This Project</h3>
-              <p>
-                This visualization helps you understand distributed systems concepts
-                through interactive simulations. Use the controls above to start,
-                pause, and step through the simulation. Click on nodes to inspect
-                their state or inject failures.
-              </p>
-            </div>
+            <ExplanationPanel projectId={currentProject} />
           </div>
         )}
       </main>

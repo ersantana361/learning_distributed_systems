@@ -16,9 +16,9 @@ RUN pnpm install
 # Copy source code
 COPY apps/web ./apps/web
 
-# Build with WebSocket URL pointing to nginx proxy
+# Build the web app
+# Note: WebSocket URL is dynamically determined at runtime based on the page location
 WORKDIR /app/apps/web
-ENV VITE_WS_URL=ws://localhost:3004/ws
 RUN pnpm build
 
 # Runtime stage - serve with nginx

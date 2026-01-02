@@ -11,13 +11,20 @@ import (
 	"time"
 
 	"github.com/ersantana/distributed-systems-learning/apps/api/internal/handlers"
+	"github.com/ersantana/distributed-systems-learning/apps/api/internal/simulation"
 	"github.com/ersantana/distributed-systems-learning/packages/protocol"
 )
+
+// Global simulation manager
+var simManager *simulation.Manager
 
 func main() {
 	// Create hub
 	hub := handlers.NewHub()
 	go hub.Run()
+
+	// Create simulation manager
+	simManager = simulation.NewManager(hub)
 
 	// Set up message handler
 	hub.SetMessageHandler(handleMessage(hub))
@@ -120,82 +127,27 @@ func handleMessage(hub *handlers.Hub) func(clientID string, msgType string, data
 				return
 			}
 			log.Printf("Starting simulation: project=%s, scenario=%s", msg.Project, msg.Scenario)
-			// TODO: Start the appropriate project simulation
 
-			// Send initial state
-			response := protocol.NewSimulationState(
-				time.Now().UnixMilli(),
-				"step",
-				1.0,
-				true,
-				make(map[string]protocol.NodeState),
-			)
-			sendResponse(hub, response)
+			// Start the simulation using the manager
+			if err := simManager.Start(msg.Project, msg.Scenario, *msg); err != nil {
+				sendError(hub, clientID, "start_error", err.Error())
+				return
+			}
+
+			// State is automatically broadcast by the manager
 
 		case protocol.MsgPauseSimulation:
 			log.Println("Pausing simulation")
-			// TODO: Pause simulation
+			simManager.Pause()
 
 		case protocol.MsgResumeSimulation:
 			log.Println("Resuming simulation")
-			// TODO: Resume simulation
+			simManager.Resume()
 
 		case protocol.MsgStopSimulation:
 			log.Println("Stopping simulation")
-			// TODO: Stop simulation
-
-		case protocol.MsgStepForward:
-			log.Println("Stepping forward")
-			// TODO: Step simulation
-
-		case protocol.MsgSetSpeed:
-			msg, err := protocol.ParseSetSpeed(data)
-			if err != nil {
-				sendError(hub, clientID, "parse_error", err.Error())
-				return
-			}
-			log.Printf("Setting speed: %f", msg.Speed)
-			// TODO: Set simulation speed
-
-		case protocol.MsgInjectCrash:
-			msg, err := protocol.ParseInjectCrash(data)
-			if err != nil {
-				sendError(hub, clientID, "parse_error", err.Error())
-				return
-			}
-			log.Printf("Crashing node: %s", msg.NodeID)
-			// TODO: Crash node
-
-		case protocol.MsgRecoverNode:
-			var msg protocol.RecoverNodeRequest
-			if err := json.Unmarshal(data, &msg); err != nil {
-				sendError(hub, clientID, "parse_error", err.Error())
-				return
-			}
-			log.Printf("Recovering node: %s", msg.NodeID)
-			// TODO: Recover node
-
-		case protocol.MsgInjectPartition:
-			var msg protocol.InjectPartitionRequest
-			if err := json.Unmarshal(data, &msg); err != nil {
-				sendError(hub, clientID, "parse_error", err.Error())
-				return
-			}
-			log.Printf("Creating partition: %s -> %s", msg.From, msg.To)
-			// TODO: Create partition
-
-		case protocol.MsgHealPartition:
-			var msg protocol.HealPartitionRequest
-			if err := json.Unmarshal(data, &msg); err != nil {
-				sendError(hub, clientID, "parse_error", err.Error())
-				return
-			}
-			log.Printf("Healing partition: %s -> %s", msg.From, msg.To)
-			// TODO: Heal partition
-
-		case protocol.MsgGetState:
-			log.Println("Getting state")
-			// TODO: Send current state
+			simManager.Stop()
+			// Send stopped state
 			response := protocol.NewSimulationState(
 				time.Now().UnixMilli(),
 				"paused",
@@ -204,6 +156,66 @@ func handleMessage(hub *handlers.Hub) func(clientID string, msgType string, data
 				make(map[string]protocol.NodeState),
 			)
 			sendResponse(hub, response)
+
+		case protocol.MsgStepForward:
+			log.Println("Stepping forward")
+			simManager.Step()
+
+		case protocol.MsgSetSpeed:
+			msg, err := protocol.ParseSetSpeed(data)
+			if err != nil {
+				sendError(hub, clientID, "parse_error", err.Error())
+				return
+			}
+			log.Printf("Setting speed: %f", msg.Speed)
+			simManager.SetSpeed(msg.Speed)
+
+		case protocol.MsgInjectCrash:
+			msg, err := protocol.ParseInjectCrash(data)
+			if err != nil {
+				sendError(hub, clientID, "parse_error", err.Error())
+				return
+			}
+			log.Printf("Crashing node: %s", msg.NodeID)
+			if err := simManager.CrashNode(msg.NodeID); err != nil {
+				sendError(hub, clientID, "crash_error", err.Error())
+			}
+
+		case protocol.MsgRecoverNode:
+			var msg protocol.RecoverNodeRequest
+			if err := json.Unmarshal(data, &msg); err != nil {
+				sendError(hub, clientID, "parse_error", err.Error())
+				return
+			}
+			log.Printf("Recovering node: %s", msg.NodeID)
+			if err := simManager.RecoverNode(msg.NodeID); err != nil {
+				sendError(hub, clientID, "recover_error", err.Error())
+			}
+
+		case protocol.MsgInjectPartition:
+			var msg protocol.InjectPartitionRequest
+			if err := json.Unmarshal(data, &msg); err != nil {
+				sendError(hub, clientID, "parse_error", err.Error())
+				return
+			}
+			log.Printf("Creating partition: %s -> %s", msg.From, msg.To)
+			simManager.InjectPartition(msg.From, msg.To, msg.Bidirectional)
+
+		case protocol.MsgHealPartition:
+			var msg protocol.HealPartitionRequest
+			if err := json.Unmarshal(data, &msg); err != nil {
+				sendError(hub, clientID, "parse_error", err.Error())
+				return
+			}
+			log.Printf("Healing partition: %s -> %s", msg.From, msg.To)
+			simManager.HealPartition(msg.From, msg.To, msg.Bidirectional)
+
+		case protocol.MsgGetState:
+			log.Println("Getting state")
+			state := simManager.GetState()
+			log.Printf("Got state: running=%v, nodes=%d", state.Running, len(state.Nodes))
+			sendResponse(hub, state)
+			log.Println("State response sent")
 
 		default:
 			log.Printf("Unknown message type: %s", msgType)

@@ -138,6 +138,8 @@ export function NodeVisualizer({
 }: NodeVisualizerProps) {
   const { nodes, partitions, selectedNode, setSelectedNode } = useSimulationStore();
 
+  console.log('[NodeVisualizer] Rendering with nodes:', Object.keys(nodes));
+
   // Convert nodes to React Flow nodes
   const flowNodes: Node<DistributedNodeData>[] = Object.entries(nodes).map(([id, node], index) => {
     const angle = (2 * Math.PI * index) / Object.keys(nodes).length - Math.PI / 2;

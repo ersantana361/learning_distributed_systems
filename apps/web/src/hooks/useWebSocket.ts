@@ -23,16 +23,19 @@ export function useWebSocket({ url, onOpen, onClose, onError }: UseWebSocketOpti
   useEffect(() => {
     const connect = () => {
       try {
+        console.log('[WS] Attempting to connect to:', url);
         ws.current = new WebSocket(url);
 
         ws.current.onopen = () => {
+          console.log('[WS] Connected successfully');
           setIsConnected(true);
           setConnected(true);
           setError(null);
           onOpen?.();
         };
 
-        ws.current.onclose = () => {
+        ws.current.onclose = (event) => {
+          console.log('[WS] Connection closed:', event.code, event.reason);
           setIsConnected(false);
           setConnected(false);
           onClose?.();
@@ -41,19 +44,28 @@ export function useWebSocket({ url, onOpen, onClose, onError }: UseWebSocketOpti
         };
 
         ws.current.onerror = (event) => {
+          console.error('[WS] Connection error:', event);
           setError('WebSocket connection error');
           onError?.(event);
         };
 
         ws.current.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            handleMessage(msg);
-          } catch (e) {
-            console.error('Failed to parse message:', e);
+          console.log('[WS] Raw message received:', event.data.substring(0, 200));
+          // Server may batch multiple JSON messages separated by newlines
+          const messages = event.data.split('\n').filter((line: string) => line.trim());
+          console.log('[WS] Split into', messages.length, 'messages');
+          for (const msgStr of messages) {
+            try {
+              const msg = JSON.parse(msgStr);
+              console.log('[WS] Parsed message type:', msg.type, 'nodes:', msg.nodes ? Object.keys(msg.nodes) : 'none');
+              handleMessage(msg);
+            } catch (e) {
+              console.error('[WS] Failed to parse message:', e, msgStr.substring(0, 100));
+            }
           }
         };
       } catch (e) {
+        console.error('[WS] Failed to connect:', e);
         setError('Failed to connect');
       }
     };
@@ -62,14 +74,17 @@ export function useWebSocket({ url, onOpen, onClose, onError }: UseWebSocketOpti
 
     return () => {
       if (ws.current) {
+        console.log('[WS] Closing connection');
         ws.current.close();
       }
     };
   }, [url]);
 
   const handleMessage = (msg: any) => {
+    console.log('[WS] handleMessage:', msg.type);
     switch (msg.type) {
       case 'simulation_state':
+        console.log('[WS] Setting simulation state:', { mode: msg.mode, speed: msg.speed, running: msg.running });
         setSimulationState({
           mode: msg.mode,
           speed: msg.speed,
@@ -77,6 +92,7 @@ export function useWebSocket({ url, onOpen, onClose, onError }: UseWebSocketOpti
           running: msg.running,
         });
         if (msg.nodes) {
+          console.log('[WS] Setting nodes:', Object.keys(msg.nodes));
           setNodes(msg.nodes);
         }
         break;
@@ -143,8 +159,12 @@ export function useWebSocket({ url, onOpen, onClose, onError }: UseWebSocketOpti
   };
 
   const send = useCallback((msg: object) => {
+    console.log('[WS] Sending message:', msg);
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify(msg));
+      console.log('[WS] Message sent successfully');
+    } else {
+      console.warn('[WS] Cannot send - WebSocket not open. State:', ws.current?.readyState);
     }
   }, []);
 
